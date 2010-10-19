@@ -12,7 +12,6 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as M
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as S
-import Data.List
 import Data.Word
 import System.Random
 import Text.Printf
@@ -41,7 +40,8 @@ decoder messageLength = Decoder messageLength M.empty []
 -- | Given a 'Decoder' and a new 'Droplet', returns either an updated 'Decoder' or the decoded message.
 --   Only the 'xor' method of 'Bits' is used.
 decode :: Bits a => Decoder a -> Droplet a -> Either (Decoder a) [a]
-decode (Decoder messageLength knownSymbols droplets) droplet@(Droplet indices symbol)
+decode (Decoder messageLength knownSymbols droplets) droplet'
+  | S.null indices                                               = Left data0
   | S.size indices == 1 && M.size knownSymbols' == messageLength = Right result
   | S.size indices == 1                                          = Left data1
   | otherwise                                                    = Left data0
@@ -49,6 +49,39 @@ decode (Decoder messageLength knownSymbols droplets) droplet@(Droplet indices sy
   data0 = Decoder messageLength knownSymbols $ droplet : droplets
   data1@(Decoder _ knownSymbols' _) = refine data0
   result = map (knownSymbols' M.!) [0 .. messageLength - 1]
+  droplet@(Droplet indices _) = refineDroplet knownSymbols droplet'
+
+{-
+decode' :: Bits a => Decoder a -> [Droplet a] -> Either (Decoder a) [a]
+decode' (Decoder messageLength symbols _) _ | M.size symbols == messageLength = Right $ map (symbols M.!) [0 .. messageLength - 1]
+decode' decoder [] = Left decoder
+decode' decoder@(Decoder messageLength symbols droplets) (droplet' : newDroplets)
+  | S.size indices == 0 = decode' decoder newDroplets
+  | S.size indices == 1 = decode' (Decoder messageLength (M.insert (head $ S.toList indices) symbol symbols) old) (new ++ newDroplets)
+  | otherwise           = decode' (Decoder messageLength symbols $ droplet : old)                                 (new ++ newDroplets)
+  where
+  droplet@(Droplet indices symbol) = refineDroplet symbols droplet'
+  (new, old) = refineDroplets droplet droplets
+
+refineDroplets :: Bits a => Droplet a -> [Droplet a] -> ([Droplet a], [Droplet a])
+refineDroplets d@(Droplet indices symbol) droplets = foldl f ([], [d]) droplets
+  where
+  --f :: Bits a => ([Droplet a], [Droplet a]) -> Droplet a -> ([Droplet a], [Droplet a])
+  f (new, old) d@(Droplet indices1 symbol1)
+    | S.isSubsetOf indices indices1 = (Droplet (S.difference indices1 indices) symbol2 : new, old)
+    | S.isSubsetOf indices1 indices = (Droplet (S.difference indices indices1) symbol2 : new, d : old)
+    | otherwise = (new, d : old)
+    where
+    symbol2 = symbol `xor` symbol1
+-}
+
+refineDroplet :: Bits a => IntMap a -> Droplet a -> Droplet a
+refineDroplet symbols (Droplet indices symbol) = f (S.toList indices) S.empty symbol 
+  where
+  f [] indices symbol = Droplet indices symbol
+  f (a : b) indices symbol
+    | M.member a symbols = f b indices $ symbol `xor` (symbols M.! a)
+    | otherwise          = f b (S.insert a indices) symbol
 
 refine :: Bits a => Decoder a -> Decoder a
 refine a@(Decoder messageLength knownSymbols droplets) = case getOne droplets of
@@ -66,7 +99,7 @@ getOne (a@(Droplet indices _) : b)
     return (i, a : b)
 
 -- | Runs a test of a Word8 message given a seed, message length, and droplet max degree.
-test :: Int -> Int -> Int -> IO ()
+test :: Int -> Int -> Int -> IO Int
 test seed messageLength maxDegree = f 1 (decoder messageLength) (droplets seed' maxDegree message)
   where
   g = mkStdGen seed
@@ -74,10 +107,10 @@ test seed messageLength maxDegree = f 1 (decoder messageLength) (droplets seed' 
   message = map fromIntegral $ take messageLength r :: [Word8]
   seed' = r !! messageLength
   f i decoder@(Decoder _ _ droplets) newDroplets = do
-    printf "iteration = %4d  droplets = %4d  2d = %4d  3d = %4d  new droplet = %s\n" (i :: Int) (length droplets) (dn 2) (dn 3) (show $ head newDroplets)
+    printf "iteration = %4d  droplets = %4d    %4d  %4d  %4d  %4d\n" (i :: Int) (length droplets) (dn 2) (dn 3) (dn 4) (dn 5)
     case decode decoder $ head newDroplets of
       Left decoder -> f (i + 1) decoder $ tail newDroplets
-      Right m      -> if m == message then return () else error "failed to reconstruct message"
+      Right m      -> if m == message then return i else error "failed to reconstruct message"
     where
     dropletIndices = [ s | (Droplet s _) <- droplets ]
     dn n = length [ s | s <- dropletIndices, S.size s == n ]
