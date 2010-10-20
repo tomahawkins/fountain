@@ -6,9 +6,10 @@ category: Codec
 synopsis: A fountain codec.
 
 description:
-  Fountain codes are rateless error correction codes for erasure channels.
-  Applications for fountain codes include distributed download and unsynchronized
-  data broadcast.
+  Fountain codes are forward error correction codes for erasure channels.
+  They are able to recover lost packets without needed a backchannel.
+  As a rateless code, transmitters generate packets at random, on the fly.
+  Receivers then listen to as many packets as needed to reconstruct the message.
   
 author:     Tom Hawkins <tomahawkins@gmail.com>
 maintainer: Tom Hawkins <tomahawkins@gmail.com>
