@@ -4,7 +4,7 @@
 --    Receivers then listen to as many packets as needed to reconstruct the message.
 module Codec.Fountain
   ( Droplet (..)
-  , Decoder (..)
+  , Decoder
   , precoding
   , droplets
   , decoder
@@ -29,7 +29,7 @@ data Decoder a = Decoder Int Int (IntMap a) [Droplet a]
 -- | A message droplet is a set of message indices and the combined symbol.
 data Droplet a = Droplet IntSet a deriving (Show, Eq)
 
--- | A precoding matrix that adds extra symbols to a message.
+-- | A precoding matrix that appends extra symbols to a message.
 type Precoding = [IntSet]
 
 -- | Generates a random precoding matrix.
@@ -68,7 +68,7 @@ droplets seed maxDegree precoding message'= droplets $ mkStdGen seed
 
 -- | Creates a new decoder given a message length and the precoding.
 decoder :: Bits a => Int -> Precoding -> Decoder a
-decoder messageLength precoding = f [ Droplet s 0 | s <- precoding ] $ Decoder messageLength (length precoding) M.empty []
+decoder messageLength precoding = f [ Droplet (S.insert i s) 0 | (i, s) <- zip [messageLength ..] precoding ] $ Decoder messageLength (length precoding) M.empty []
   where
   f [] decoder = decoder
   f (a : b) decoder = f b $ fst $ decode decoder a
@@ -110,7 +110,7 @@ refineDroplet symbols (Droplet indices symbol) = f (S.toList indices) S.empty sy
 -- | Runs a test of a [Word8] message given a seed, message length, and droplet max degree.
 --   Returns the number of droplets that were needed to decode the message and if the message
 --   was sucessfully decoded.
-test :: Int -> Int -> Int -> Precoding -> (Int, Bool, ([Word8], [Word8]), [Decoder Word8], Precoding)
+test :: Int -> Int -> Int -> Precoding -> (Int, Bool, [Decoder Word8])
 test seed messageLength maxDegree precoding = f 1 (decoder messageLength precoding) [] (droplets seed' maxDegree precoding message)
   where
   g = mkStdGen seed
@@ -119,7 +119,7 @@ test seed messageLength maxDegree precoding = f 1 (decoder messageLength precodi
   seed' = r !! messageLength
   f i decoder decoders newDroplets = case decode decoder $ head newDroplets of
     (decoder', Nothing) -> f (i + 1) decoder' (decoders ++ [decoder]) (tail newDroplets)
-    (decoder', Just m)  -> (i, m == message, (message, m), decoders ++ [decoder, decoder'], precoding)
+    (decoder', Just m)  -> (i, m == message, decoders ++ [decoder, decoder'])
 
 -- | Runs a test with a randomly generated precoding.
 -- > test' seed messageLength dropletMaxDegree extraSymbols (precodingMinDegree, precodingMaxDegree)
