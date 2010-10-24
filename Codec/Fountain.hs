@@ -107,11 +107,11 @@ refineDroplet symbols (Droplet indices symbol) = f (S.toList indices) S.empty sy
     | M.member a symbols = f b indices $ symbol `xor` (symbols M.! a)
     | otherwise          = f b (S.insert a indices) symbol
 
--- | Runs a test of a [Word8] message given a seed, message length, and droplet max degree.
+-- | Runs a test of a [Word8] message given the message length, max droplet degree, and a seed.
 --   Returns the number of droplets that were needed to decode the message and if the message
 --   was sucessfully decoded.
-test :: Int -> Int -> Int -> Precoding -> (Int, Bool, [Decoder Word8])
-test seed messageLength maxDegree precoding = f 1 (decoder messageLength precoding) [] (droplets seed' maxDegree precoding message)
+test :: Int -> Int -> Precoding -> Int -> (Int, Bool, [Decoder Word8])
+test messageLength maxDegree precoding seed = f 1 (decoder messageLength precoding) [] (droplets seed' maxDegree precoding message)
   where
   g = mkStdGen seed
   r = randoms g
@@ -122,9 +122,9 @@ test seed messageLength maxDegree precoding = f 1 (decoder messageLength precodi
     (decoder', Just m)  -> (i, m == message, decoders ++ [decoder, decoder'])
 
 -- | Runs a test with a randomly generated precoding.
--- > test' seed messageLength dropletMaxDegree extraSymbols (precodingMinDegree, precodingMaxDegree)
-test' seed messageLength maxDegree extraSymbols minMaxDegree =
-  test seed messageLength maxDegree $ precoding (seed + 1) messageLength extraSymbols minMaxDegree
+-- > test' messageLength dropletMaxDegree extraSymbols (precodingMinDegree, precodingMaxDegree) seed
+test' messageLength maxDegree extraSymbols minMaxDegree seed =
+  test messageLength maxDegree (precoding (seed + 1) messageLength extraSymbols minMaxDegree) seed
 
 -- | A visual of 'Decoder' progress.
 decoderProgress :: Decoder a -> String
