@@ -1,14 +1,28 @@
--- |  Fountain codes are forward error correction codes for erasure channels.
---    They are able to recover lost packets without needing a backchannel.
---    As a rateless code, transmitters generate packets at random, on the fly.
---    Receivers then listen to as many packets as needed to reconstruct the message.
+-- |
+-- Module      : Codec.Fountain
+-- Copyright   : Tom Hawkins
+-- License     : BSD3
+--
+-- Maintainer  : tomahawkins@gmail.com
+-- Portability : unknown
+--
+-- Fountain codes are forward error correction codes for erasure channels.
+-- They are able to recover lost packets without needing a backchannel.
+-- As a rateless code, transmitters generate packets at random, on the fly.
+-- Receivers then listen to as many packets as needed to reconstruct the message.
+
 module Codec.Fountain
-  ( Droplet (..)
+  ( 
+  -- * Datatypes
+    Droplet (..)
   , Decoder
+  , Precoding
+  -- * Functions
   , precoding
   , droplets
   , decoder
   , decode
+  -- * Test
   , test
   , test'
   , decoderProgress
@@ -33,22 +47,22 @@ data Droplet a = Droplet IntSet a deriving (Show, Eq)
 type Precoding = [IntSet]
 
 -- | Generates a random precoding matrix.
--- > precoding seed messageLength extraSymbols (minDegree, maxDegree)
+-- > precoding seed messageLength extraSymbols boundaries
 precoding :: Int -> Int -> Int -> (Int, Int) -> Precoding
-precoding seed messageLength extraSymbols (minDegree, maxDegree) = f 0 $ mkStdGen seed
+precoding seed messageLength extraSymbols boundaries = f 0 $ mkStdGen seed
   where
   f :: RandomGen g => Int -> g -> Precoding
   f stage g
     | stage >= extraSymbols = []
     | otherwise = indices : f (stage + 1) g1
     where
-    (indices, g1) = randomRow (messageLength + stage) (minDegree, maxDegree) g
+    (indices, g1) = randomRow (messageLength + stage) boundaries g
 
 -- Generates a random row of indices, given width and min and max degree.
 randomRow :: RandomGen g => Int -> (Int, Int) -> g -> (IntSet, g)
-randomRow rowWidth (minDegree, maxDegree) g = f S.empty g1
+randomRow rowWidth boundaries g = f S.empty g1
   where
-  (degree, g1) = randomR (minDegree, maxDegree) g
+  (degree, g1) = randomR boundaries g
   f s g
     | S.size s == degree = (s, g)
     | S.member index s = f s g1
@@ -58,9 +72,9 @@ randomRow rowWidth (minDegree, maxDegree) g = f S.empty g1
 
 -- | An infinite list of droplets, given a seed, the max degree, precoding, and a message.
 droplets :: Bits a => Int -> Int -> Precoding -> [a] -> [Droplet a]
-droplets seed maxDegree precoding message'= droplets $ mkStdGen seed
+droplets seed maxDegree precoding message' = droplets $ mkStdGen seed
   where
-  symbol s = foldl1 xor $ map (message !!) $ S.toList s
+  symbol s = foldl1' xor . map (message !!) $ S.toList s
   message = message' ++ [ symbol s | s <- precoding ]
   droplets g = Droplet indices (symbol indices) : droplets g1
     where
@@ -94,7 +108,7 @@ refineDroplets d@(Droplet indices symbol) droplets = foldl f ([], [d]) droplets
   --f :: Bits a => ([Droplet a], [Droplet a]) -> Droplet a -> ([Droplet a], [Droplet a])
   f (new, old) d@(Droplet indices1 symbol1)
     | S.isSubsetOf indices indices1 = (Droplet (S.difference indices1 indices) symbol2 : new, old)
-    -- | S.isSubsetOf indices1 indices = (Droplet (S.difference indices indices1) symbol2 : new, d : old)
+    --  S.isSubsetOf indices1 indices = (Droplet (S.difference indices indices1) symbol2 : new, d : old)
     | otherwise = (new, d : old)
     where
     symbol2 = symbol `xor` symbol1
