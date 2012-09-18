@@ -1,5 +1,5 @@
 name:    fountain
-version: 0.0.2
+version: 0.0.3
 
 category: Codec
 
@@ -11,8 +11,9 @@ description:
   As a rateless code, transmitters generate packets at random, on the fly.
   Receivers then listen to as many packets as needed to reconstruct the message.
   
-author:     Tom Hawkins <tomahawkins@gmail.com>
-maintainer: Tom Hawkins <tomahawkins@gmail.com>
+author:     Tom Hawkins    <tomahawkins@gmail.com>
+maintainer: Tom Hawkins    <tomahawkins@gmail.com>
+            RubenAstudillo <ruben.astud@gmail.com>
 
 license:      BSD3
 license-file: LICENSE
